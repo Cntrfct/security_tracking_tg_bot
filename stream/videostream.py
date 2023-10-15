@@ -10,8 +10,9 @@ from aiogram.types import BufferedInputFile, Message
 
 
 class Videostream:
-    def __init__(self, chat_id: int, bot: Bot) -> None:
+    def __init__(self, chat_id: int, bot: Bot, cam_id: int | str) -> None:
         self.chat_id = chat_id
+        self.cam_id: int | str = cam_id
         self.bot = bot
         self.cap: None = None
         self.img: np.ndarray = np.ndarray((320, 480, 3))
@@ -37,7 +38,7 @@ class Videostream:
         net.setInputMean((127.5, 127.5, 127.5))
         net.setInputSwapRB(swapRB=True)
 
-        self.cap = cv2.VideoCapture(0)
+        self.cap = cv2.VideoCapture(self.cam_id)
         self.object_detector_task = asyncio.create_task(self._frame_object_detector())
 
         while self.cap.isOpened():
@@ -96,7 +97,6 @@ class Videostream:
 
             self.img = img
             # преобразовываем в строку
-
             self.frame_obj = "{}".format(", ".join(objects)) if objects else None
 
     # оповещение об объектах в кадре
