@@ -9,12 +9,16 @@ from aiogram import Bot
 from aiogram.types import BufferedInputFile, Message
 
 
+class StreamNotOpened(Exception):
+    pass
+
+
 class Videostream:
     def __init__(self, chat_id: int, bot: Bot, cam_id: int | str) -> None:
-        self.chat_id = chat_id
+        self.chat_id: int = chat_id
         self.cam_id: int | str = cam_id
-        self.bot = bot
-        self.cap: None = None
+        self.bot: Bot = bot
+        self.cap: cv2.VideoCapture | None = None
         self.img: np.ndarray = np.ndarray((320, 480, 3))
         self.frame_obj: str | None = None
         self.thread_task: asyncio.Task | None = None
@@ -22,21 +26,7 @@ class Videostream:
         self.lock = threading.Lock()
 
     # Видеопоток
-    async def video_stream(self) -> None:
-
-        # загружаем модель, веса и датасет имён для распознавания
-        with Path("stream/classnames.txt").open(encoding="utf-8") as f:
-            classnames = [line.strip() for line in f.readlines()]
-
-        config_path = "stream/ssd_mobilenet_v3_large_coco_2020_01_14.pbtxt"
-        weights_path = "stream/frozen_inference_graph.pb"
-
-        # настраиваем распознавание
-        net = cv2.dnn_DetectionModel(weights_path, config_path)
-        net.setInputSize(320, 320)
-        net.setInputScale(1.0 / 127.5)
-        net.setInputMean((127.5, 127.5, 127.5))
-        net.setInputSwapRB(swapRB=True)
+    async def video_stream(self, classnames: tuple[str], net: cv2.dnn.DetectionModel) -> None:
 
         self.cap = cv2.VideoCapture(self.cam_id)
         self.object_detector_task = asyncio.create_task(self._frame_object_detector())
@@ -51,7 +41,7 @@ class Videostream:
             await asyncio.sleep(0.3)
 
     # получаем картинку
-    def _create_img(self, classnames: list[str], net: cv2.dnn_DetectionModel) -> None:
+    def _create_img(self, classnames: tuple[str], net: cv2.dnn_DetectionModel) -> None:
         ok, img = self.cap.read()
 
         if not ok:
@@ -82,7 +72,7 @@ class Videostream:
                 )
                 cv2.putText(
                     img,
-                    classnames[class_ids[i] - 1].upper(),
+                    classnames[class_ids[i] - 1],
                     (box[0] + 5, box[1] - 5),
                     cv2.FONT_HERSHEY_COMPLEX,
                     fontScale=0.8,
@@ -96,6 +86,7 @@ class Videostream:
                 )
 
             self.img = img
+
             # преобразовываем в строку
             self.frame_obj = "{}".format(", ".join(objects)) if objects else None
 
@@ -127,8 +118,8 @@ class Videostream:
                                   )
 
     # запуск видеопотока
-    def run_stream(self) -> None:
-        self.thread_task = asyncio.create_task(self.video_stream())
+    def run_stream(self, classnames, net) -> None:
+        self.thread_task = asyncio.create_task(self.video_stream(classnames, net))
 
     # остановка видеопотока
     def stop_stream(self) -> None:
@@ -149,10 +140,39 @@ class Videostream:
         img, frame_obj = self.get_frame(self.img), self.frame_obj
         await msg.answer_photo(photo=img, caption=frame_obj)
 
+    # проверка запуска потока
+    def cap_is_opened(self) -> bool:
+        if self.cap is not None:
+            return self.cap.isOpened()
+        return False
+
 
 class ChatVideoStreams:
     def __init__(self) -> None:
         self.livestreams: dict[int, Videostream] = {}
+        self.net = self._create_net()
+        self.classnames = self._create_classnames()
+
+    @staticmethod
+    def _create_net() -> cv2.dnn.DetectionModel:
+
+        config_path = "stream/ssd_mobilenet_v3_large_coco_2020_01_14.pbtxt"
+        weights_path = "stream/frozen_inference_graph.pb"
+
+        # настраиваем распознавание
+        net = cv2.dnn_DetectionModel(weights_path, config_path)
+        net.setInputSize(320, 320)
+        net.setInputScale(1.0 / 127.5)
+        net.setInputMean((127.5, 127.5, 127.5))
+        net.setInputSwapRB(swapRB=True)
+        return net
+
+    @staticmethod
+    def _create_classnames() -> tuple[str]:
+        # загружаем модель, веса и датасет имён для распознавания
+        with Path("stream/classnames.txt").open(encoding="utf-8") as f:
+            classnames = tuple(line.strip().capitalize() for line in f.readlines())
+            return classnames
 
     def add_live_stream(self, chat_id: int, livestream: Videostream) -> Videostream:
         if chat_id in self.livestreams:
@@ -160,7 +180,14 @@ class ChatVideoStreams:
             raise KeyError(msg)
 
         self.livestreams[chat_id] = livestream
-        self.livestreams[chat_id].run_stream()
+        self.livestreams[chat_id].run_stream(self.classnames, self.net)
+
+        # этот блок нужно ещё доработать
+        if not livestream.cap_is_opened():
+            self.stop_live_stream(chat_id)
+            msg = "Wrong stream link"
+            raise StreamNotOpened(msg)
+
         return self.livestreams[chat_id]
 
     def get_live_stream(self, chat_id: int) -> Videostream:
@@ -172,5 +199,9 @@ class ChatVideoStreams:
 
     def stop_live_stream(self, chat_id: int) -> Videostream:
         livestream = self.get_live_stream(chat_id)
-        livestream.stop_stream()
+
+        # этот блок нужно ещё доработать
+        if livestream.cap_is_opened():
+            livestream.stop_stream()
+
         return self.livestreams.pop(chat_id)

@@ -25,7 +25,7 @@ async def start_command(msg: Message):
 # запустить состояние выбора источника видеопотока
 @router.message(Command(commands="stream"))
 async def start_stream(msg: Message, state: FSMContext) -> None:
-    await msg.answer(text="Введите источник камеры:")
+    await msg.answer(text="Введите источник потока:")
     await state.set_state(UserState.choosing_input)
 
 
@@ -54,7 +54,9 @@ async def set_input_int(msg: Message,
 
 
 # этот хэндлер принимает ссылку на поток
-@router.message(UserState.choosing_input, F.text.startswith(('http:', 'https:', 'rtsp:')), F.text.as_("cam_id"))
+@router.message(UserState.choosing_input,
+                F.text.startswith(('http:', 'https:', 'rtsp:', 'rtmp:')),
+                F.text.as_("cam_id"))
 async def set_input_str(msg: Message,
                         bot: Bot,
                         state: FSMContext,
