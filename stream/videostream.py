@@ -1,6 +1,6 @@
 import asyncio
 import threading
-
+from functools import partial
 from pathlib import Path
 
 import cv2
@@ -22,17 +22,21 @@ class Videostream:
         self.lock = threading.Lock()
 
     # Видеопоток
-    async def video_stream(self, classnames: tuple[str], net: cv2.dnn.DetectionModel) -> None:
-
+    async def video_stream(
+            self,
+            classnames: tuple[str],
+            net: cv2.dnn.DetectionModel,
+    ) -> None:
         self.cap = cv2.VideoCapture(self.cam_id)
+
+        if not self.cap.isOpened():
+            msg = "Error: 'Could not open stream'"
+            raise RuntimeError(msg)
+
         self.object_detector_task = asyncio.create_task(self._frame_object_detector())
 
         while self.cap.isOpened():
-            await asyncio.to_thread(
-                self._create_img,
-                classnames=classnames,
-                net=net
-            )
+            await asyncio.to_thread(self._create_img, classnames=classnames, net=net)
 
             await asyncio.sleep(0.3)
 
@@ -64,7 +68,7 @@ class Videostream:
                     (x, y),
                     (x + w, h + y),
                     color=(0, 255, 0),
-                    thickness=2
+                    thickness=2,
                 )
                 cv2.putText(
                     img,
@@ -73,12 +77,12 @@ class Videostream:
                     cv2.FONT_HERSHEY_COMPLEX,
                     fontScale=0.8,
                     color=(0, 255, 0),
-                    thickness=2
+                    thickness=2,
                 )
 
                 # список с объектами в кадре
                 objects.append(
-                    f"{classnames[class_ids[i] - 1]} - {round(confs[i] * 100)}%"
+                    f"{classnames[class_ids[i] - 1]} - {round(confs[i] * 100)}%",
                 )
 
             self.img = img
@@ -94,7 +98,7 @@ class Videostream:
                 await self.send_warning(
                     chat_id=self.chat_id,
                     frame=self.get_frame(self.img),
-                    frame_obj=self.frame_obj
+                    frame_obj=self.frame_obj,
                 )
                 await asyncio.sleep(10)
 
@@ -106,22 +110,24 @@ class Videostream:
             self,
             chat_id: int,
             frame: BufferedInputFile,
-            frame_obj: str
+            frame_obj: str,
     ) -> None:
-        await self.bot.send_photo(chat_id=chat_id,
-                                  photo=frame,
-                                  caption=frame_obj
-                                  )
+        await self.bot.send_photo(chat_id=chat_id, photo=frame, caption=frame_obj)
 
     # запуск видеопотока
-    def run_stream(self, classnames, net) -> None:
+    def run_stream(
+            self,
+            classnames: tuple[str],
+            net: cv2.dnn.DetectionModel,
+    ) -> asyncio.Task:
         self.thread_task = asyncio.create_task(self.video_stream(classnames, net))
+        return self.thread_task
 
     # остановка видеопотока
     def stop_stream(self) -> None:
         self.cap.release()
-        self.thread_task.cancel()
-        self.object_detector_task.cancel()
+        self.thread_task.cancel() if self.thread_task else None
+        self.object_detector_task.cancel() if self.object_detector_task else None
         self.thread_task = None
         self.object_detector_task = None
 
@@ -143,9 +149,9 @@ class ChatVideoStreams:
         self.net = self._create_net()
         self.classnames = self._create_classnames()
 
+    # создание модели распознавания
     @staticmethod
     def _create_net() -> cv2.dnn.DetectionModel:
-
         config_path = "stream/ssd_mobilenet_v3_large_coco_2020_01_14.pbtxt"
         weights_path = "stream/frozen_inference_graph.pb"
 
@@ -157,23 +163,43 @@ class ChatVideoStreams:
         net.setInputSwapRB(swapRB=True)
         return net
 
+    # определение классов из датасэта
     @staticmethod
     def _create_classnames() -> tuple[str]:
         # загружаем модель, веса и датасет имён для распознавания
         with Path("stream/classnames.txt").open(encoding="utf-8") as f:
-            classnames = tuple(line.strip().capitalize() for line in f.readlines())
-            return classnames
+            return tuple(line.strip().capitalize() for line in f.readlines())
 
+    # обработка ошибок остановки потока
+    def _done_callback(self, task: asyncio.Task, chat_id: int) -> None:
+        if task.done():
+            try:
+                if exception := task.exception():
+                    livestream = self.livestreams[chat_id]
+                    livestream.stop_stream()
+                    asyncio.create_task(
+                        livestream.bot.send_message(
+                            chat_id=chat_id,
+                            text=f"Видеопоток остановлен!\n\n{exception}",
+                        ),
+                    )
+                self.livestreams.pop(chat_id)
+            except asyncio.CancelledError:
+                pass
+
+    # создание объекта видеопотока
     def add_live_stream(self, chat_id: int, livestream: Videostream) -> Videostream:
         if chat_id in self.livestreams:
             msg = "Stream already exists"
             raise KeyError(msg)
 
         self.livestreams[chat_id] = livestream
-        self.livestreams[chat_id].run_stream(self.classnames, self.net)
+        task = self.livestreams[chat_id].run_stream(self.classnames, self.net)
+        task.add_done_callback(partial(self._done_callback, chat_id=chat_id))
 
         return self.livestreams[chat_id]
 
+    # получение объекта видеопотока
     def get_live_stream(self, chat_id: int) -> Videostream:
         if chat_id not in self.livestreams:
             msg = "Stream not found"
@@ -181,6 +207,7 @@ class ChatVideoStreams:
 
         return self.livestreams[chat_id]
 
+    # удаление объекта видеопотока
     def stop_live_stream(self, chat_id: int) -> Videostream:
         livestream = self.get_live_stream(chat_id)
         livestream.stop_stream()

@@ -1,8 +1,9 @@
-from aiogram import Bot, Router, F
-from aiogram.filters import CommandStart, Command
-from aiogram.types import Message
+from aiogram import Bot, F, Router
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import Message
+
 from stream.videostream import ChatVideoStreams, Videostream
 
 # роутер обработки хэндлеров
@@ -16,10 +17,13 @@ class UserState(StatesGroup):
 
 # обработка команды старт
 @router.message(CommandStart())
-async def start_command(msg: Message):
-    await msg.answer(text="<b>Добро пожаловать!</b>\n\n"
-                          "Данный бот умеет управлять системой видеонаблюдения.\n"
-                          "Воспользуйтесь кнопкой <b>'Меню'</b>")
+async def start_command(msg: Message) -> None:
+    await msg.answer(
+        text="<b>Добро пожаловать!</b>\n\n"
+        "Данный бот умеет управлять видеопотоком,\n"
+        "распознавать объекты в кадре и посылать уведомления\n"
+        "Воспользуйтесь кнопкой <b>'Меню'</b>",
+    )
 
 
 # запустить состояние выбора источника видеопотока
@@ -31,11 +35,13 @@ async def start_stream(msg: Message, state: FSMContext) -> None:
 
 # этот хэндлер принимает целое число, для выбора вэб-камеры
 @router.message(UserState.choosing_input, F.text.cast(int).as_("cam_id"))
-async def set_input_int(msg: Message,
-                        bot: Bot,
-                        state: FSMContext,
-                        cam_id: int,
-                        chat_video_streams: ChatVideoStreams) -> None:
+async def set_input_int(
+    msg: Message,
+    bot: Bot,
+    state: FSMContext,
+    cam_id: int,
+    chat_video_streams: ChatVideoStreams,
+) -> None:
     try:
         chat_video_streams.add_live_stream(
             chat_id=msg.chat.id,
@@ -54,14 +60,18 @@ async def set_input_int(msg: Message,
 
 
 # этот хэндлер принимает ссылку на поток
-@router.message(UserState.choosing_input,
-                F.text.startswith(('http:', 'https:', 'rtsp:', 'rtmp:')),
-                F.text.as_("cam_id"))
-async def set_input_str(msg: Message,
-                        bot: Bot,
-                        state: FSMContext,
-                        cam_id: str,
-                        chat_video_streams: ChatVideoStreams) -> None:
+@router.message(
+    UserState.choosing_input,
+    F.text.startswith(("http:", "https:", "rtsp:", "rtmp:")),
+    F.text.as_("cam_id"),
+)
+async def set_input_str(
+    msg: Message,
+    bot: Bot,
+    state: FSMContext,
+    cam_id: str,
+    chat_video_streams: ChatVideoStreams,
+) -> None:
     try:
         chat_video_streams.add_live_stream(
             chat_id=msg.chat.id,
@@ -81,10 +91,12 @@ async def set_input_str(msg: Message,
 
 # этот хэндлер сообщает о некорректно введенном источнике
 @router.message(UserState.choosing_input)
-async def set_input_incorrectly(msg: Message):
-    await msg.answer(text="<b>Источник введён не корректно!</b>\n\n"
-                          "Пожалуйста, введите <b>цифру</b>(например <b>0</b>) для вэб-камеры\n"
-                          "или <b>ссылку</b> для подключения к удаленному видеопотоку")
+async def set_input_incorrectly(msg: Message) -> None:
+    await msg.answer(
+        text="<b>Источник введён не корректно!</b>\n\n"
+        "Пожалуйста, введите <b>цифру</b>(например <b>0</b>) для вэб-камеры\n"
+        "или <b>ссылку</b> для подключения к удаленному видеопотоку",
+    )
 
 
 # остановить видеопоток
