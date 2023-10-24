@@ -1,0 +1,18 @@
+version: "3.8"
+services:
+  bot:
+
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+
+    stop_signal: SIGINT
+
+
+
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+
+    restart: "on-failure"
+
+    entrypoint: [ "python3", "main.py" ]
