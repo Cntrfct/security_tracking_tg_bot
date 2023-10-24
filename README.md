@@ -3,7 +3,7 @@
 
 <img src="https://www.python.org/static/community_logos/python-powered-w.svg" align="left" height="100"></img>    <img src="https://opencv1.b-cdn.net/wp-content/uploads/2020/07/OpenCV_logo_no_text-1.svg" align="center" height="100"></img> <img src="https://docs.aiogram.dev/en/dev-3.x/_static/logo.png" align="center" alt="Aiogram" height="100"></img>   
 
-## Телеграм-бот для распознавания и оповещения об объектах в кадре.
+<h2 align="center"> Телеграм-бот для распознавания и оповещения об объектах в кадре.</h2><br><br>
 
 
 
@@ -45,3 +45,11 @@
 Бот отлично справляется с функцией распознавания. В качестве источника может быть выбран любой видеопоток.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+
+
+### Контакты
+https://t.me/C0NTRAfact
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
