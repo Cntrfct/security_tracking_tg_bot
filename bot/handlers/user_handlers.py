@@ -33,30 +33,30 @@ async def start_stream(msg: Message, state: FSMContext) -> None:
     await state.set_state(UserState.choosing_input)
 
 
-# этот хэндлер принимает целое число, для выбора вэб-камеры
-@router.message(UserState.choosing_input, F.text.cast(int).as_("cam_id"))
-async def set_input_int(
-    msg: Message,
-    bot: Bot,
-    state: FSMContext,
-    cam_id: int,
-    chat_video_streams: ChatVideoStreams,
-) -> None:
-    try:
-        chat_video_streams.add_live_stream(
-            chat_id=msg.chat.id,
-            livestream=Videostream(chat_id=msg.chat.id, bot=bot, cam_id=cam_id),
-        )
-
-    except KeyError:
-        await msg.answer(text="Видеопоток уже запущен!")
-        return
-
-    else:
-        await msg.answer(text="Видеопоток запущен. . .")
-
-    finally:
-        await state.clear()
+# этот хэндлер принимает целое число, для выбора вэб-камеры. Использовать только на локальной машине
+# @router.message(UserState.choosing_input, F.text.cast(int).as_("cam_id"))
+# async def set_input_int(
+#     msg: Message,
+#     bot: Bot,
+#     state: FSMContext,
+#     cam_id: int,
+#     chat_video_streams: ChatVideoStreams,
+# ) -> None:
+#     try:
+#         chat_video_streams.add_live_stream(
+#             chat_id=msg.chat.id,
+#             livestream=Videostream(chat_id=msg.chat.id, bot=bot, cam_id=cam_id),
+#         )
+#
+#     except KeyError:
+#         await msg.answer(text="Видеопоток уже запущен!")
+#         return
+#
+#     else:
+#         await msg.answer(text="Видеопоток запущен. . .")
+#
+#     finally:
+#         await state.clear()
 
 
 # этот хэндлер принимает ссылку на поток
@@ -83,7 +83,7 @@ async def set_input_str(
         return
 
     else:
-        await msg.answer(text="Видеопоток запущен. . .")
+        await msg.answer(text="Видеопоток запускается. . .")
 
     finally:
         await state.clear()
@@ -94,8 +94,8 @@ async def set_input_str(
 async def set_input_incorrectly(msg: Message) -> None:
     await msg.answer(
         text="<b>Источник введён не корректно!</b>\n\n"
-        "Пожалуйста, введите <b>цифру</b>(например <b>0</b>) для вэб-камеры\n"
-        "или <b>ссылку</b> для подключения к удаленному видеопотоку",
+        "Пожалуйста, введите <b>ссылку</b> (например <b>rtsp://...</b>)\n"
+             "для подключения к удаленному видеопотоку",
     )
 
 

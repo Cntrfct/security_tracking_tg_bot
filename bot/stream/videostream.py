@@ -10,9 +10,9 @@ from aiogram.types import BufferedInputFile, Message
 
 
 class Videostream:
-    def __init__(self, chat_id: int, bot: Bot, cam_id: int | str) -> None:
+    def __init__(self, chat_id: int, bot: Bot, cam_id: str) -> None:
         self.chat_id: int = chat_id
-        self.cam_id: int | str = cam_id
+        self.cam_id: str = cam_id
         self.bot: Bot = bot
         self.cap: cv2.VideoCapture | None = None
         self.img: np.ndarray = np.ndarray((320, 480, 3))
