@@ -2,5 +2,6 @@
 /lib
 /.idea
 .env
+/venv
 pyvenv.cfg
 **/__pycache__
