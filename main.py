@@ -18,7 +18,7 @@ logging.basicConfig(
 # инициализация бота и диспетчера, регистрация роутера
 async def main() -> None:
     config: Config = load_config()
-    bot: Bot = Bot(token=config.tg_bot.token, parse_mode='HTML')
+    bot: Bot = Bot(token=config.token, parse_mode='HTML')
     dp: Dispatcher = Dispatcher(storage=MemoryStorage(), chat_video_streams=ChatVideoStreams())
     dp.include_router(router=user_handlers.router)
     # удаляем обновления, добавляем кнопку меню, запускаем бота в режиме поллинга

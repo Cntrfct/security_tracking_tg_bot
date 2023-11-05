@@ -1,5 +1,6 @@
 import asyncio
 import threading
+import time
 from functools import partial
 from pathlib import Path
 
@@ -17,8 +18,9 @@ class Videostream:
         self.cap: cv2.VideoCapture | None = None
         self.img: np.ndarray = np.ndarray((320, 480, 3))
         self.frame_obj: str | None = None
-        self.thread_task: asyncio.Task | None = None
+        self.video_stream_task: asyncio.Task | None = None
         self.object_detector_task: asyncio.Task | None = None
+        self.image_worker_task: asyncio.Task | None = None
         self.lock = threading.Lock()
 
     # Видеопоток
@@ -35,10 +37,11 @@ class Videostream:
 
         self.object_detector_task = asyncio.create_task(self._frame_object_detector())
 
-        while self.cap.isOpened():
-            await asyncio.to_thread(self._create_img, classnames=classnames, net=net)
-
-            await asyncio.sleep(0.3)
+        self.image_worker_task = asyncio.create_task(asyncio.to_thread(
+            self._create_img_worker,
+            classnames=classnames,
+            net=net)
+        )
 
     # получаем картинку
     def _create_img(self, classnames: tuple[str], net: cv2.dnn_DetectionModel) -> None:
@@ -105,6 +108,13 @@ class Videostream:
             else:
                 await asyncio.sleep(0.3)
 
+    def _create_img_worker(self, classnames: tuple[str], net: cv2.dnn_DetectionModel) -> None:
+
+        while self.cap.isOpened():
+            self._create_img(classnames=classnames, net=net)
+
+            time.sleep(0.3)
+
     # отправка оповещения в чат пользователя
     async def send_warning(
             self,
@@ -120,15 +130,15 @@ class Videostream:
             classnames: tuple[str],
             net: cv2.dnn.DetectionModel,
     ) -> asyncio.Task:
-        self.thread_task = asyncio.create_task(self.video_stream(classnames, net))
-        return self.thread_task
+        self.video_stream_task = asyncio.create_task(self.video_stream(classnames, net))
+        return self.video_stream_task
 
     # остановка видеопотока
     def stop_stream(self) -> None:
         self.cap.release()
-        self.thread_task.cancel() if self.thread_task else None
+        self.video_stream_task.cancel() if self.video_stream_task else None
         self.object_detector_task.cancel() if self.object_detector_task else None
-        self.thread_task = None
+        self.video_stream_task = None
         self.object_detector_task = None
 
     # сохранение кадра в буффер
