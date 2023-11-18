@@ -35,13 +35,14 @@ class Videostream:
             msg = "Error: 'Could not open stream'"
             raise RuntimeError(msg)
 
-        self.object_detector_task = asyncio.create_task(self._frame_object_detector())
-
-        self.image_worker_task = asyncio.create_task(asyncio.to_thread(
-            self._create_img_worker,
-            classnames=classnames,
-            net=net)
+        self.image_worker_task = asyncio.create_task(
+            asyncio.to_thread(
+                self._create_img_worker,
+                classnames=classnames,
+                net=net)
         )
+
+        self.object_detector_task = asyncio.create_task(self._frame_object_detector())
 
     # получаем картинку
     def _create_img(self, classnames: tuple[str], net: cv2.dnn_DetectionModel) -> None:
